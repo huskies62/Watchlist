@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Watchlist</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Watchlist</h1>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-status="want_to_watch">Queue</button>
+    <button class="tab" data-status="watched">Watched</button>
+  </div>
+</header>
+
+<main>
+  <div id="empty-state" class="empty-state hidden">
+    <p class="empty-title">Nothing here yet</p>
+    <p class="empty-sub">Add a title below to start your list.</p>
+  </div>
+
+  <ul id="entry-list" class="entry-list"></ul>
+</main>
+
+<button id="add-btn" class="fab" aria-label="Add title">+</button>
+
+<div id="add-sheet" class="sheet hidden">
+  <div class="sheet-inner">
+    <div class="sheet-handle"></div>
+    <h2 id="sheet-title">Add title</h2>
+
+    <label class="field">
+      <span>Title</span>
+      <input id="f-title" type="text" autocomplete="off" placeholder="e.g. The Wire" />
+    </label>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Type</span>
+        <select id="f-type">
+          <option value="movie">Movie</option>
+          <option value="show">TV Show</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Status</span>
+        <select id="f-status">
+          <option value="want_to_watch">Want to watch</option>
+          <option value="watched">Watched</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="field" id="rating-field">
+      <span>Rating</span>
+      <div class="stars" id="f-rating" data-value="0">
+        <span data-star="1">★</span><span data-star="2">★</span><span data-star="3">★</span><span data-star="4">★</span><span data-star="5">★</span>
+      </div>
+    </label>
+
+    <div class="sheet-actions">
+      <button id="delete-btn" class="btn danger hidden">Delete</button>
+      <button id="cancel-btn" class="btn ghost">Cancel</button>
+      <button id="save-btn" class="btn primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="scrim" class="scrim hidden"></div>
+
+<div id="toast" class="toast hidden"></div>
+
+<div id="setup-screen" class="setup hidden">
+  <div class="setup-card">
+    <p class="setup-eyebrow">First-time setup</p>
+    <h2>Connect your sheet</h2>
+    <p class="setup-copy">Paste the Apps Script web app URL and the access token you set up. See the README for the two-minute setup.</p>
+    <label class="field">
+      <span>Web app URL</span>
+      <input id="cfg-url" type="text" placeholder="https://script.google.com/macros/s/.../exec" />
+    </label>
+    <label class="field">
+      <span>Access token</span>
+      <input id="cfg-token" type="text" placeholder="your-shared-secret" />
+    </label>
+    <button id="cfg-save" class="btn primary full">Connect</button>
+    <p id="cfg-error" class="setup-error hidden"></p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

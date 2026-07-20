@@ -13,7 +13,7 @@
  * 5. Copy the deployment URL and the TOKEN into the app's setup screen.
  */
 
-const TOKEN = wl_9f2a7c4e1b8d3f60a5c9e2d7b1f48630;
+const TOKEN = "wl_9f2a7c4e1b8d3f60a5c9e2d7b1f48630";
 const SHEET_NAME = "entries";
 const HEADERS = ["id", "title", "type", "status", "rating", "date_added"];
 

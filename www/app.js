@@ -207,7 +207,7 @@
       await refresh();
       setupEl.classList.add("hidden");
     } catch (err) {
-      cfgError.textContent = "Couldn't connect. Check the URL and token, then try again.";
+      cfgError.textContent = "Error: " + err.message;
       cfgError.classList.remove("hidden");
     }
   });

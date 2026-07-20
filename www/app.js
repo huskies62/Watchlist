@@ -22,25 +22,64 @@
   }
 
   // ---------- API ----------
+  // Uses the native CapacitorHttp plugin directly rather than the patched
+  // fetch — Google Apps Script's internal redirect doesn't come back as
+  // clean JSON through the fetch shim, but the native plugin handles it fine.
+  function nativeHttp() {
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
+  }
+
+  function parseBody(data) {
+    if (typeof data === "string") {
+      try {
+        return JSON.parse(data);
+      } catch {
+        throw new Error("Unexpected response from server");
+      }
+    }
+    return data;
+  }
+
   async function apiList() {
     const cfg = getConfig();
-    const url = `${cfg.url}?token=${encodeURIComponent(cfg.token)}&action=list`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Request failed");
-    const data = await res.json();
+    const http = nativeHttp();
+    let data;
+    if (http) {
+      const res = await http.get({
+        url: cfg.url,
+        params: { token: cfg.token, action: "list" },
+      });
+      data = parseBody(res.data);
+    } else {
+      const url = `${cfg.url}?token=${encodeURIComponent(cfg.token)}&action=list`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Request failed");
+      data = await res.json();
+    }
     if (data.error) throw new Error(data.error);
     return data.entries || [];
   }
 
   async function apiWrite(action, entry) {
     const cfg = getConfig();
-    const res = await fetch(cfg.url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ token: cfg.token, action, entry }),
-    });
-    if (!res.ok) throw new Error("Request failed");
-    const data = await res.json();
+    const http = nativeHttp();
+    let data;
+    if (http) {
+      const res = await http.post({
+        url: cfg.url,
+        headers: { "Content-Type": "application/json" },
+        data: { token: cfg.token, action, entry },
+      });
+      data = parseBody(res.data);
+    } else {
+      const res = await fetch(cfg.url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ token: cfg.token, action, entry }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      data = await res.json();
+    }
     if (data.error) throw new Error(data.error);
     return data;
   }
@@ -230,7 +269,7 @@
       setupEl.classList.remove("hidden");
       cfgUrl.value = cfg.url || "";
       cfgToken.value = cfg.token || "";
-      cfgError.textContent = "Lost connection. Check the URL and token below.";
+      cfgError.textContent = "Error: " + err.message;
       cfgError.classList.remove("hidden");
     }
   }

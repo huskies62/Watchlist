@@ -34,7 +34,7 @@
       try {
         return JSON.parse(data);
       } catch {
-        throw new Error("Unexpected response from server");
+        throw new Error("Non-JSON response: " + data.slice(0, 200));
       }
     }
     return data;

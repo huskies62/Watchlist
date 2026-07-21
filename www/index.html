@@ -13,6 +13,7 @@
   <div class="tabs" role="tablist">
     <button class="tab active" data-status="want_to_watch">Queue</button>
     <button class="tab" data-status="watched">Watched</button>
+    <button class="tab" data-status="waiting_for_season">Waiting</button>
   </div>
 </header>
 
@@ -51,9 +52,23 @@
         <select id="f-status">
           <option value="want_to_watch">Want to watch</option>
           <option value="watched">Watched</option>
+          <option value="waiting_for_season">Waiting for new season</option>
         </select>
       </label>
     </div>
+
+    <label class="field">
+      <span>Where to watch</span>
+      <select id="f-platform">
+        <option value="">Not set</option>
+        <option value="netflix">Netflix</option>
+        <option value="crave">Crave</option>
+        <option value="amazon">Amazon</option>
+        <option value="prime">Prime Video</option>
+        <option value="disney">Disney+</option>
+        <option value="plex">Plex</option>
+      </select>
+    </label>
 
     <label class="field" id="rating-field">
       <span>Rating</span>

@@ -22,9 +22,6 @@
   }
 
   // ---------- API ----------
-  // Uses the native CapacitorHttp plugin directly rather than the patched
-  // fetch — Google Apps Script's internal redirect doesn't come back as
-  // clean JSON through the fetch shim, but the native plugin handles it fine.
   function nativeHttp() {
     return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
   }
@@ -34,7 +31,7 @@
       try {
         return JSON.parse(data);
       } catch {
-        throw new Error("Non-JSON response: " + data.slice(0, 200));
+        throw new Error("Unexpected response from server");
       }
     }
     return data;
@@ -84,7 +81,43 @@
     return data;
   }
 
+  async function apiReorder(order) {
+    const cfg = getConfig();
+    const http = nativeHttp();
+    let data;
+    if (http) {
+      const res = await http.post({
+        url: cfg.url,
+        headers: { "Content-Type": "application/json" },
+        data: { token: cfg.token, action: "reorder", order },
+      });
+      data = parseBody(res.data);
+    } else {
+      const res = await fetch(cfg.url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ token: cfg.token, action: "reorder", order }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      data = await res.json();
+    }
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
   // ---------- rendering ----------
+  const PLATFORM_LABELS = {
+    netflix: "Netflix",
+    crave: "Crave",
+    amazon: "Amazon",
+    prime: "Prime Video",
+    disney: "Disney+",
+    plex: "Plex",
+  };
+  function platformLabel(key) {
+    return PLATFORM_LABELS[key] || key;
+  }
+
   const listEl = document.getElementById("entry-list");
   const emptyEl = document.getElementById("empty-state");
 
@@ -93,35 +126,112 @@
     listEl.innerHTML = "";
     emptyEl.classList.toggle("hidden", filtered.length > 0);
 
-    filtered
-      .slice()
-      .sort((a, b) => (b.date_added || "").localeCompare(a.date_added || ""))
-      .forEach((entry) => {
-        const li = document.createElement("li");
-        li.className = "entry" + (entry.status === "watched" ? " is-watched" : "");
-        li.dataset.id = entry.id;
+    const isQueue = state.tab === "want_to_watch";
+    const sorted = filtered.slice().sort((a, b) => {
+      if (isQueue) return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0);
+      return (b.date_added || "").localeCompare(a.date_added || "");
+    });
 
-        const title = document.createElement("div");
-        title.className = "entry-title";
-        title.textContent = entry.title;
+    sorted.forEach((entry) => {
+      const li = document.createElement("li");
+      li.className = "entry" + (entry.status === "watched" ? " is-watched" : "");
+      li.dataset.id = entry.id;
 
-        const meta = document.createElement("div");
-        meta.className = "entry-meta";
-        meta.textContent = entry.type === "show" ? "TV Show" : "Movie";
+      if (isQueue) {
+        const handle = document.createElement("div");
+        handle.className = "drag-handle";
+        handle.textContent = "⠿";
+        li.appendChild(handle);
+        initDragHandle(li, handle);
+      }
 
-        li.appendChild(title);
-        li.appendChild(meta);
+      const textWrap = document.createElement("div");
+      textWrap.className = "entry-text";
 
-        if (entry.status === "watched" && entry.rating) {
-          const rating = document.createElement("div");
-          rating.className = "entry-rating";
-          rating.textContent = "★".repeat(entry.rating) + "☆".repeat(5 - entry.rating);
-          li.appendChild(rating);
-        }
+      const title = document.createElement("div");
+      title.className = "entry-title";
+      title.textContent = entry.title;
 
-        li.addEventListener("click", () => openSheet(entry));
-        listEl.appendChild(li);
+      const meta = document.createElement("div");
+      meta.className = "entry-meta";
+      const typeLabel = entry.type === "show" ? "TV Show" : "Movie";
+      meta.textContent = entry.platform ? `${typeLabel} · ${platformLabel(entry.platform)}` : typeLabel;
+
+      textWrap.appendChild(title);
+      textWrap.appendChild(meta);
+      li.appendChild(textWrap);
+
+      if (entry.status === "watched" && entry.rating) {
+        const rating = document.createElement("div");
+        rating.className = "entry-rating";
+        rating.textContent = "★".repeat(entry.rating) + "☆".repeat(5 - entry.rating);
+        li.appendChild(rating);
+      }
+
+      li.addEventListener("click", (e) => {
+        if (e.target.closest(".drag-handle")) return;
+        openSheet(entry);
       });
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- drag to reorder (queue tab only) ----------
+  let dragState = null;
+
+  function initDragHandle(li, handle) {
+    handle.style.touchAction = "none";
+
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragState = { li, startY: e.clientY };
+      li.classList.add("dragging");
+      handle.setPointerCapture(e.pointerId);
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragState || dragState.li !== li) return;
+      const deltaY = e.clientY - dragState.startY;
+      li.style.transform = `translateY(${deltaY}px)`;
+
+      const siblings = Array.from(listEl.children).filter((el) => el !== li);
+      const liRect = li.getBoundingClientRect();
+      const liCenter = liRect.top + liRect.height / 2;
+
+      for (const sib of siblings) {
+        const rect = sib.getBoundingClientRect();
+        const sibCenter = rect.top + rect.height / 2;
+        if (Math.abs(liCenter - sibCenter) < rect.height / 2) {
+          if (liCenter < sibCenter) {
+            listEl.insertBefore(li, sib);
+          } else {
+            listEl.insertBefore(li, sib.nextSibling);
+          }
+          dragState.startY = e.clientY;
+          li.style.transform = "translateY(0px)";
+          break;
+        }
+      }
+    });
+
+    handle.addEventListener("pointerup", async (e) => {
+      if (!dragState || dragState.li !== li) return;
+      li.style.transform = "";
+      li.classList.remove("dragging");
+      handle.releasePointerCapture(e.pointerId);
+      dragState = null;
+
+      const ids = Array.from(listEl.children).map((el) => el.dataset.id);
+      ids.forEach((id, idx) => {
+        const entryObj = state.entries.find((en) => en.id === id);
+        if (entryObj) entryObj.sort_order = idx;
+      });
+      try {
+        await apiReorder(ids);
+      } catch (err) {
+        showToast("Reorder failed to sync");
+      }
+    });
   }
 
   // ---------- tabs ----------
@@ -140,6 +250,7 @@
   const fTitle = document.getElementById("f-title");
   const fType = document.getElementById("f-type");
   const fStatus = document.getElementById("f-status");
+  const fPlatform = document.getElementById("f-platform");
   const fRating = document.getElementById("f-rating");
   const deleteBtn = document.getElementById("delete-btn");
   const sheetTitleEl = document.getElementById("sheet-title");
@@ -164,6 +275,7 @@
     fTitle.value = entry ? entry.title : "";
     fType.value = entry ? entry.type : "movie";
     fStatus.value = entry ? entry.status : state.tab;
+    fPlatform.value = entry ? entry.platform || "" : "";
     setRatingUI(entry ? entry.rating || 0 : 0);
     deleteBtn.classList.toggle("hidden", !entry);
     sheetEl.classList.remove("hidden");
@@ -195,6 +307,10 @@
       date_added: state.editingId
         ? state.entries.find((e) => e.id === state.editingId)?.date_added
         : new Date().toISOString().slice(0, 10),
+      sort_order: state.editingId
+        ? state.entries.find((e) => e.id === state.editingId)?.sort_order ?? 0
+        : state.entries.filter((e) => e.status === "want_to_watch").length,
+      platform: fPlatform.value,
     };
 
     closeSheet();
@@ -246,7 +362,7 @@
       await refresh();
       setupEl.classList.add("hidden");
     } catch (err) {
-      cfgError.textContent = "Error: " + err.message;
+      cfgError.textContent = "Couldn't connect. Check the URL and token, then try again.";
       cfgError.classList.remove("hidden");
     }
   });
@@ -269,7 +385,7 @@
       setupEl.classList.remove("hidden");
       cfgUrl.value = cfg.url || "";
       cfgToken.value = cfg.token || "";
-      cfgError.textContent = "Error: " + err.message;
+      cfgError.textContent = "Lost connection. Check the URL and token below.";
       cfgError.classList.remove("hidden");
     }
   }
